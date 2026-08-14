@@ -110,8 +110,7 @@ def ejecutar_prediccion_ml(stats_local, stats_visit, pitcher_local_info, pitcher
     carreras_base_local = (stats_local.get('R', 0) / juegos_local) * factor_p_local * factor_estadio
     carreras_base_visit = (stats_visit.get('R', 0) / juegos_visit) * factor_p_visit * factor_estadio
     
-    # 2. Simulación de Monte Carlo (10,000 iteraciones) para calcular probabilidad de victoria
-    np.random.seed(42)
+    # 2. Simulación de Monte Carlo (10,000 iteraciones) sin semilla fija para variabilidad real
     sims_local = np.random.poisson(max(carreras_base_local, 1.2), 10000)
     sims_visit = np.random.poisson(max(carreras_base_visit, 1.2), 10000)
     
@@ -152,17 +151,26 @@ def proyectar_ponches_lanzador(pitcher_k_per_9, innings_proyectados, rival_k_rat
     ponches_esperados = k_segun_pitcher * factor_rival
     return round(ponches_esperados, 1)
 
-def obtener_stats_pitcher_api(nombre_pitcher):
+def obtener_stats_pitcher_api(pitcher_input):
     """
-    Busca al jugador en la API de la MLB y retorna sus stats (K/9, ERA, FIP y Nombre Correcto).
+    Busca al jugador en la API de la MLB por ID numérico o por Nombre y retorna sus stats.
     """
     try:
-        players = statsapi.lookup_player(nombre_pitcher)
-        if not players:
-            return {"k9": 8.5, "era": 4.00, "fip": 4.00, "nombre": nombre_pitcher}
-        
-        pid = players[0]['id']
-        stats = statsapi.player_stat_data(pid, group="pitching", type="season")
+        # Si recibe un ID numérico directo de la boxscore
+        if isinstance(pitcher_input, int) or (isinstance(pitcher_input, str) and pitcher_input.isdigit()):
+            pid = int(pitcher_input)
+            if pid == 0:
+                return {"k9": 8.5, "era": 4.00, "fip": 4.00, "nombre": "TBD"}
+            stats = statsapi.player_stat_data(pid, group="pitching", type="season")
+            nombre_res = str(pid)
+        else:
+            # Si recibe un nombre en texto
+            players = statsapi.lookup_player(pitcher_input)
+            if not players:
+                return {"k9": 8.5, "era": 4.00, "fip": 4.00, "nombre": str(pitcher_input)}
+            pid = players[0]['id']
+            stats = statsapi.player_stat_data(pid, group="pitching", type="season")
+            nombre_res = players[0]['fullName']
         
         k9 = 8.5
         era = 4.00
@@ -171,7 +179,7 @@ def obtener_stats_pitcher_api(nombre_pitcher):
                 k9 = float(s['stats']['strikeOutsPer9Inn'])
             if 'earnedRunAverage' in s.get('stats', {}):
                 era = float(s['stats']['earnedRunAverage'])
-        
-        return {"k9": round(k9, 2), "era": round(era, 2), "fip": era, "nombre": players[0]['fullName']}
+                
+        return {"k9": round(k9, 2), "era": round(era, 2), "fip": era, "nombre": nombre_res}
     except:
-        return {"k9": 8.5, "era": 4.00, "fip": 4.00, "nombre": nombre_pitcher}
+        return {"k9": 8.5, "era": 4.00, "fip": 4.00, "nombre": str(pitcher_input)}
