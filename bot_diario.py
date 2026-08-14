@@ -12,11 +12,19 @@ def enviar_a_telegram(mensaje):
     requests.post(url, json=payload)
 
 def obtener_stats_equipo(team_id):
+    """Obtiene carreras anotadas y juegos jugados reales desde la tabla de posiciones de la MLB."""
     try:
-        stats = statsapi.team_stats(team_id, "hitting", "season")
-        return {'R': float(stats.get('runs', 4.0)), 'G': float(stats.get('gamesPlayed', 100))}
+        standings = statsapi.standings_data(leagueId="103,104", season=datetime.now().year)
+        for league_key, divisions in standings.items():
+            for division_name, teams in divisions.items():
+                for team in teams:
+                    if team['team_id'] == team_id:
+                        r_anotadas = float(team.get('runsScored', 400))
+                        g_jugados = float(team.get('gamesPlayed', 100))
+                        return {'R': r_anotadas, 'G': max(g_jugados, 1)}
+        return {'R': 400.0, 'G': 100.0}
     except:
-        return {'R': 4.0, 'G': 100}
+        return {'R': 400.0, 'G': 100.0}
 
 def main():
     hoy_str = datetime.now().strftime('%Y-%m-%d')
@@ -48,7 +56,7 @@ def main():
             p_local = home_pitchers[0] if home_pitchers else 0
             p_visit = away_pitchers[0] if away_pitchers else 0
             
-            # 2. Extraer estadísticas avanzadas de pitchers y equipos
+            # 2. Extraer estadísticas avanzadas de pitchers y equipos reales de la temporada
             stats_loc_pitcher = obtener_stats_pitcher_api(p_local)
             stats_vis_pitcher = obtener_stats_pitcher_api(p_visit)
             stats_loc_team = obtener_stats_equipo(home_id)
@@ -92,7 +100,6 @@ def main():
                 ou_prob = min(50.0 + abs(linea_referencia - total_ou) * 12, 85.0)
 
             match_str = f"{visit[:3]} @ {local[:3]}"
-            # Cambiado a 1 decimal ({prob_max:.1f}%) para evitar que se queden en números cerrados como 50%
             reporte += f"{match_str:<11} | {pick:<5} ({prob_max:.1f}%) | {ou_pick} ({ou_prob:.0f}%)\n"
             juegos_procesados += 1
             
