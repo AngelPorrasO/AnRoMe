@@ -1,6 +1,6 @@
-streamlit
-pandas
-numpy
-MLB-StatsAPI
+streamlit==1.38.0
+pandas==2.2.3
+numpy==1.26.4
+MLB-StatsAPI==0.8.2
 requests
 scipy
