@@ -70,12 +70,15 @@ def main():
     except Exception as e:
         print(f"Error evaluando ayer: {e}")
     
-    # 2. Obtener partidos de hoy
+    # 2. Obtener partidos de hoy con depuración
     hoy_str = datetime.now().strftime('%Y-%m-%d')
+    print(f"Buscando partidos en statsapi para la fecha: {hoy_str}")
+    
     partidos_hoy = statsapi.schedule(date=hoy_str)
+    print(f"Partidos encontrados crudos: {len(partidos_hoy) if partidos_hoy else 0}")
     
     if not partidos_hoy:
-        enviar_a_telegram(f"🤖 *Reporte MLB ({hoy_str})*\n\nNo hay partidos programados para el día de hoy.")
+        enviar_a_telegram(f"🤖 *Reporte MLB ({hoy_str})*\n\nNo se encontraron partidos programados o la API no devolvió datos para hoy.")
         return
 
     # 3. Generar predicciones y armar la tabla para Telegram
@@ -84,10 +87,11 @@ def main():
     reporte += "Juego              | Pick      | Prob\n"
     reporte += "-----------------------------------\n"
     
+    juegos_agregados = 0
     for juego in partidos_hoy:
         game_pk = juego.get('game_id')
-        local = juego.get('home_name')
-        visitante = juego.get('away_name')
+        local = juego.get('home_name', 'Local')
+        visitante = juego.get('away_name', 'Visitante')
         
         try:
             p_loc, p_vis, carreras_esp = ejecutar_prediccion_ml(game_pk)
@@ -96,9 +100,13 @@ def main():
             
             match_str = f"{visitante[:3]} @ {local[:3]}"
             reporte += f"{match_str:<18} | {pick:<9} | {prob_max:.1f}%\n"
+            juegos_agregados += 1
         except Exception as e:
-            print(f"Error prediciendo juego {game_pk}: {e}")
+            print(f"Error prediciendo juego {game_pk} ({visitante} @ {local}): {e}")
             
+    if juegos_agregados == 0:
+        reporte += "No se pudieron calcular picks para los juegos de hoy.\n"
+        
     reporte += "```\n"
     reporte += "🎯 *Generado automáticamente por tu IA*"
     
