@@ -1,0 +1,27 @@
+name: Bot Diario MLB
+
+on:
+  schedule:
+    # Se ejecuta todos los días a las 13:00 UTC
+    - cron: '0 13 * * *'
+  workflow_dispatch: # Permite ejecutarlo a mano cuando quieras
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar Repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Instalar Dependencias
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Ejecutar Script Diario
+        run: python bot_diario.py
