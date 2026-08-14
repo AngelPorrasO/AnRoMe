@@ -24,7 +24,7 @@ def main():
     
     reporte = f"📊 *Predicciones y Mercados MLB - {hoy_str}*\n"
     reporte += "```text\n"
-    reporte += "Juego       | Pick    | Prob  | O/U Proy\n"
+    reporte += "Juego       | Moneyline     | Total (O/U)\n"
     reporte += "----------------------------------------\n"
     
     for juego in partidos:
@@ -62,17 +62,32 @@ def main():
             )
             
             prob_visit = 1.0 - prob_local
-            pick = "Local" if prob_local > prob_visit else "Visit"
-            prob_max = max(prob_local, prob_visit) * 100
             
-            # 4. Cálculo estimado para el mercado de Totales (Over / Under Linea Proyectada)
-            carreras_base_est = (stats_loc_team['R'] / max(stats_loc_team['G'], 1) + 
-                                  stats_vis_team['R'] / max(stats_vis_team['G'], 1)) / 2.0
-            fuerza_abridores = (stats_loc_pitcher['era'] + stats_vis_pitcher['era']) / 10.0
-            total_ou = round(carreras_base_est + fuerza_abridores + 2.1, 1)
+            # Asignar el nombre real del equipo ganador al pick
+            if prob_local > prob_visit:
+                pick = local[:3]
+                prob_max = prob_local * 100
+            else:
+                pick = visit[:3]
+                prob_max = prob_visit * 100
             
+            # 4. Cálculo realista para el mercado de Totales (Over / Under con porcentaje)
+            prom_carreras_liga = 4.5 
+            ajuste_pitchteo = ((stats_loc_pitcher['era'] + stats_vis_pitcher['era']) - 8.0) * 0.2
+            total_ou = round((prom_carreras_liga * 2) + ajuste_pitchteo, 1)
+            total_ou = max(min(total_ou, 14.5), 6.5)
+            
+            linea_referencia = 8.5
+            if total_ou > linea_referencia:
+                ou_pick = f"Over {linea_referencia}"
+                ou_prob = min(50.0 + abs(total_ou - linea_referencia) * 12, 85.0)
+            else:
+                ou_pick = f"Under {linea_referencia}"
+                ou_prob = min(50.0 + abs(linea_referencia - total_ou) * 12, 85.0)
+
             match_str = f"{visit[:3]} @ {local[:3]}"
-            reporte += f"{match_str:<11} | {pick:<7} | {prob_max:4.1f}% | {total_ou}\n"
+            reporte += f"{match_str:<11} | {pick:<5} ({prob_max:.0f}%) | {ou_pick} ({ou_prob:.0f}%)\n"
+            
         except Exception as e:
             print(f"Error en juego {game_pk}: {e}")
             
