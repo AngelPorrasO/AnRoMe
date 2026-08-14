@@ -36,7 +36,6 @@ def main():
     juegos_procesados = 0
 
     for juego in partidos:
-        game_pk = juego.get('game_id')
         local = juego.get('home_name', 'Local')
         visit = juego.get('away_name', 'Visit')
         
@@ -44,20 +43,11 @@ def main():
             home_id = juego.get('home_id')
             away_id = juego.get('away_id')
             
-            # Obtener lanzadores reales
-            game_data = statsapi.get('game', {'gamePk': game_pk})
-            box = game_data.get('liveData', {}).get('boxscore', {})
+            # SOLUCIÓN: Usamos los pitchers probables del calendario en lugar del boxscore
+            p_local = juego.get('home_probable_pitcher', 'No anunciado')
+            p_visit = juego.get('away_probable_pitcher', 'No anunciado')
             
-            home_pitchers = box.get('teams', {}).get('home', {}).get('pitchers', [])
-            away_pitchers = box.get('teams', {}).get('away', {}).get('pitchers', [])
-            
-            if not home_pitchers or not away_pitchers:
-                raise ValueError("Lanzador abridor aún no anunciado oficialmente.")
-                
-            p_local = home_pitchers[0]
-            p_visit = away_pitchers[0]
-            
-            # Extraer stats estrictamente reales
+            # Extraer stats con los lanzadores probables
             stats_loc_pitcher = obtener_stats_pitcher_api(p_local)
             stats_vis_pitcher = obtener_stats_pitcher_api(p_visit)
             stats_loc_team = obtener_stats_equipo(home_id)
@@ -83,7 +73,7 @@ def main():
                 pick = visit[:3]
                 prob_max = prob_visit * 100
             
-            # Mercado de Totales basado en la efectividad real de los abridores
+            # Mercado de Totales
             prom_carreras_liga = 4.5 
             ajuste_pitchteo = ((stats_loc_pitcher['era'] + stats_vis_pitcher['era']) - 8.0) * 0.2
             total_ou = round((prom_carreras_liga * 2) + ajuste_pitchteo, 1)
@@ -102,12 +92,11 @@ def main():
             juegos_procesados += 1
             
         except Exception as e:
-            # Si un juego no tiene pitcher anunciado o datos completos, se omite limpiamente
             print(f"Juego omitido ({visit} @ {local}): {e}")
             continue
             
     if juegos_procesados == 0:
-        reporte += "No hay partidos con alineaciones y estadísticas completas hoy.\n"
+        reporte += "No hay partidos programados o con datos disponibles hoy.\n"
         
     reporte += "```\n"
     reporte += "🎯 *Generado automáticamente por tu IA*"
