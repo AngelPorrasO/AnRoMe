@@ -12,19 +12,17 @@ def enviar_a_telegram(mensaje):
     requests.post(url, json=payload)
 
 def obtener_stats_equipo(team_id):
-    """Obtiene carreras anotadas y juegos jugados reales desde la tabla de posiciones de la MLB."""
-    try:
-        standings = statsapi.standings_data(leagueId="103,104", season=datetime.now().year)
-        for league_key, divisions in standings.items():
-            for division_name, teams in divisions.items():
-                for team in teams:
-                    if team['team_id'] == team_id:
-                        r_anotadas = float(team.get('runsScored', 400))
-                        g_jugados = float(team.get('gamesPlayed', 100))
-                        return {'R': r_anotadas, 'G': max(g_jugados, 1)}
-        return {'R': 400.0, 'G': 100.0}
-    except:
-        return {'R': 400.0, 'G': 100.0}
+    """Extrae las carreras anotadas reales de la tabla de posiciones oficial."""
+    standings = statsapi.standings_data(leagueId="103,104", season=datetime.now().year)
+    for league_key, divisions in standings.items():
+        for division_name, teams in divisions.items():
+            for team in teams:
+                if team['team_id'] == team_id:
+                    return {
+                        'R': float(team['runsScored']),
+                        'G': float(team['gamesPlayed'])
+                    }
+    raise ValueError(f"No se encontraron estadísticas de equipo para el ID {team_id}")
 
 def main():
     hoy_str = datetime.now().strftime('%Y-%m-%d')
@@ -46,38 +44,38 @@ def main():
             home_id = juego.get('home_id')
             away_id = juego.get('away_id')
             
-            # 1. Obtener datos de lanzadores de forma segura
+            # Obtener lanzadores reales
             game_data = statsapi.get('game', {'gamePk': game_pk})
             box = game_data.get('liveData', {}).get('boxscore', {})
             
             home_pitchers = box.get('teams', {}).get('home', {}).get('pitchers', [])
             away_pitchers = box.get('teams', {}).get('away', {}).get('pitchers', [])
             
-            p_local = home_pitchers[0] if home_pitchers else 0
-            p_visit = away_pitchers[0] if away_pitchers else 0
+            if not home_pitchers or not away_pitchers:
+                raise ValueError("Lanzador abridor aún no anunciado oficialmente.")
+                
+            p_local = home_pitchers[0]
+            p_visit = away_pitchers[0]
             
-            # 2. Extraer estadísticas avanzadas de pitchers y equipos reales de la temporada
+            # Extraer stats estrictamente reales
             stats_loc_pitcher = obtener_stats_pitcher_api(p_local)
             stats_vis_pitcher = obtener_stats_pitcher_api(p_visit)
             stats_loc_team = obtener_stats_equipo(home_id)
             stats_vis_team = obtener_stats_equipo(away_id)
             
-            # 3. Calcular probabilidad de victoria con tu motor (Moneyline) con decimales reales
+            # Calcular probabilidad real con el motor logístico
             prob_local = ejecutar_prediccion_ml(
                 stats_local=stats_loc_team,
                 stats_visit=stats_vis_team,
                 pitcher_local_info=stats_loc_pitcher,
                 pitcher_visit_info=stats_vis_pitcher,
                 factor_estadio=1.0,
-                lambda_local=1.0,
-                lambda_visit=1.0,
                 nombre_local=local,
                 nombre_visitante=visit
             )
             
             prob_visit = 1.0 - prob_local
             
-            # Asignar el nombre real del equipo ganador y mostrar porcentaje con decimales reales
             if prob_local > prob_visit:
                 pick = local[:3]
                 prob_max = prob_local * 100
@@ -85,7 +83,7 @@ def main():
                 pick = visit[:3]
                 prob_max = prob_visit * 100
             
-            # 4. Cálculo para el mercado de Totales (Over / Under con porcentaje)
+            # Mercado de Totales basado en la efectividad real de los abridores
             prom_carreras_liga = 4.5 
             ajuste_pitchteo = ((stats_loc_pitcher['era'] + stats_vis_pitcher['era']) - 8.0) * 0.2
             total_ou = round((prom_carreras_liga * 2) + ajuste_pitchteo, 1)
@@ -104,11 +102,12 @@ def main():
             juegos_procesados += 1
             
         except Exception as e:
-            print(f"Error procesando el juego {game_pk} ({visit} @ {local}): {e}")
+            # Si un juego no tiene pitcher anunciado o datos completos, se omite limpiamente
+            print(f"Juego omitido ({visit} @ {local}): {e}")
             continue
             
     if juegos_procesados == 0:
-        reporte += "No se pudieron procesar partidos hoy.\n"
+        reporte += "No hay partidos con alineaciones y estadísticas completas hoy.\n"
         
     reporte += "```\n"
     reporte += "🎯 *Generado automáticamente por tu IA*"
